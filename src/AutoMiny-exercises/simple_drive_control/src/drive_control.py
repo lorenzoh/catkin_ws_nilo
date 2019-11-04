@@ -124,8 +124,11 @@ rospy.init_node("simple_drive_control")
 
 # read parameters from parameter server (launch file or rosparam set), if
 # existing
+
+
 if rospy.has_param("speed_rpm"):
     speed_rpm = rospy.get_param("speed_rpm")
+
 
 # create subscribers and publishers
 sub_odom = rospy.Subscriber("/sensors/odometry/odom", Odometry, callbackOdom, queue_size=100)
