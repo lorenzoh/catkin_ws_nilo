@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import rospy
 import autominy_msgs
 from autominy_msgs.msg import Speed
