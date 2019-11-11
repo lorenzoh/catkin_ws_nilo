@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import cv2 as cv
 import rospy
 from sensor_msgs.msg import CameraInfo
 
@@ -20,7 +21,7 @@ def callback(data):
     D = data.D
     #print(str(D[1]) + ":"+str(D[2]))
     K = data.K
-    rospy.signal_shutdown("get data")
+    #rospy.signal_shutdown("get data")
     #rospy.loginfo("data: " + str(data))
 
 def listener():
@@ -28,5 +29,7 @@ def listener():
     rospy.init_node("listener", anonymous=True)
     rospy.Subscriber("/sensors/camera/infra1/camera_info", CameraInfo, callback)
     rospy.spin()
+
+
 if __name__ == "__main__":
     listener()
