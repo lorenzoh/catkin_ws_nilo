@@ -1,0 +1,11 @@
+Remote:
+export ROS_MASTER_URI="http://192.168.43.[NUMBER]:11311/"
+Local:
+export ROS_MASTER_URI="http://localhost:11311"
+
+export ROS_IP="[COMPUTER IP]"
+
+show value:
+echo $ROS_MASTER_URI
+
+source devel/setup.bash
