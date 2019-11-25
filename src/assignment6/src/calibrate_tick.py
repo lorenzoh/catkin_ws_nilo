@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from autominy_msgs.msg import SpeedCommand, NormalizedSteeringCommand, SteeringFeedback
+from autominy_msgs.msg import SpeedCommand, NormalizedSteeringCommand, SteeringFeedback, Tick
 from std_msgs.msg import String, Float32
 import numpy as np
 import math
@@ -12,13 +12,13 @@ import csv
 x = 0
 y = 0
 car_psoitions = []
+tick_count = 0
 
 def callback_gps(data):
     global x
     global y
     x = data.pose.pose.position.x
     y = data.pose.pose.position.y
-
     #print("X: " + str(x)[:3] + ", Y: " + str(y)[:3])
 
 
@@ -28,9 +28,11 @@ def calc_distance(p1, p2):
         return distance
     else:
         print("Cannot calc distance between p1: " + str(p1) + " and p2: " + str(p2))
+        return 0
 
 
 def calc_radius(p1,p2,p3):
+    r = 0
     q = (p1[0]**2)/2 + (p1[1]**2)/2 - (p2[0]**2)/2 - (p2[1]**2)/2
     p = (p3[0]**2)/2 + (p3[1]**2)/2 - (p2[0]**2)/2 - (p2[1]**2)/2
     #linear system
@@ -46,11 +48,20 @@ def calc_radius(p1,p2,p3):
 
 
 def callback_ticks(data):
-    ticks = data
-    print("ticks: " + ticks )
+    global tick_count
+    tick_count += data.value
 
 def get_car_position():
     car_psoitions.append((x,y))
+
+def start_counting_ticks():
+    global tick_count
+    tick_count = 0
+
+def get_counted_ticks():
+    global tick_count
+    return tick_count
+
 
 def drive():
     # publisher for speed and sterring
@@ -66,16 +77,21 @@ def drive():
     rospy.sleep(1)
 
     get_car_position()
+    start_counting_ticks()
     speed_cmd.value = 1.4
     pub_speed.publish(speed_cmd)
-    rospy.sleep(2)
+    rospy.sleep(4)
     speed_cmd.value = 0
     pub_speed.publish(speed_cmd)
     get_car_position()
 
     rospy.sleep(2)
     distance = calc_distance(car_psoitions[0],car_psoitions[1])
-    print(distance)
+    ticks = get_counted_ticks()
+    ticks_meter_ration = ticks / distance
+    print("distance: " + str(distance) + " , ticks: " + str(ticks) + " , ration: " + str(ticks_meter_ration))
+
+
 
     # # drive 3 times and measure positions
     # for i in range(3):
@@ -94,7 +110,7 @@ def drive():
 
 def main():
     rospy.init_node("tick_calibration")
-    rospy.Subscriber('/sensors/arduino/ticks', Odometry, callback_ticks)
+    rospy.Subscriber('/sensors/arduino/ticks', Tick, callback_ticks)
     rospy.Subscriber('/communication/gps/10', Odometry, callback_gps)
     drive()
     rospy.spin()
