@@ -21,14 +21,14 @@ class TickCalibrator:
         self.subscriber_ticks = rospy.Subscriber(
             "/sensors/arduino/ticks", Tick, self.callback_ticks)
         self.subscriber_gps = rospy.Subscriber(
-            "/communnication/gps/10", Tick, self.callback_gps)
+            "/communication/gps/10", Odometry, self.callback_gps)
         self.publisher_speed = rospy.Publisher(
             "/actuators/speed", SpeedCommand, queue_size=100)
         self.publisher_steering = rospy.Publisher(
-            "/actuators/steering_normalized", SpeedCommand, queue_size=100)
+            "/actuators/steering_normalized", NormalizedSteeringCommand, queue_size=100)
 
     def run(self, speed, angle, seconds):
-        rospy.sleep(.1)
+        rospy.sleep(1)
         assert self.x
         assert self.y
 
@@ -57,16 +57,24 @@ class TickCalibrator:
 
     def callback_ticks(self, data):
         self.ticks += data.value
-        print("Ticks: ", data)
+        #print("Ticks: ", data.value)
         
     def callback_gps(self, data):
-        self.x = data.pose.pose.position.x
-        self.y = data.pose.pose.position.y
+        self.x = round(data.pose.pose.position.x, 2)
+        self.y = round(data.pose.pose.position.y, 2)
         self.positions.append((self.x, self.y))
-        print("GPS: ", data)
+        #print("GPS: ", (self.x, self.y))
 
 
 def calculate_distance(positions):
+    """
+    Approximate the travelled distance by computing the distances
+    between sampled locations and summing
+    """
+    print(len(positions))
+
+    positions = [p for i, p in enumerate(positions) if i % 5 == 0]
+
     distance = 0
     for ((x1, y1), (x2, y2)) in zip(positions, positions[1:]):
         distance += math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
