@@ -7,3 +7,6 @@ devel/
 logs/
 /.metadata/
 .idea/
+__pycache__
+.mypy_cache
+.vscode
