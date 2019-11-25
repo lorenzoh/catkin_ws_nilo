@@ -50,8 +50,10 @@ class TickCalibrator:
         positions = self.positions[:]
         distance = calculate_distance(positions)
 
-    def reset_ticks(self):
-        self.ticks = 0
+        print("Calibration run with speed: ", speed, ", angle: ", angle, "for ", seconds, "seconds.")
+        print("Ticks: ", ticks)
+        print("Distance: ", distance)
+        print("Ratio: ", distance / ticks)
 
     def callback_ticks(self, data):
         self.ticks += data.value
