@@ -1,24 +1,26 @@
+#!/usr/bin/env python
+
 import rospy
 import sys
+import math
 
-
-from autominy_msgs.msg import NormalizedSteeringCommand
+from autominy_msgs.msg import NormalizedSteeringCommand, SpeedCommand
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 
-CAR_ID = str(10)
+CAR_ID = "11"
 
 class PDController:
-    """
-    PD-controller that tries to achieve constant yaw `r`.
-    Hence r(t) = r is constant for all t
-    y(t) is the actual yaw obtained from the odometry information
-    e(t) = r(t) - y(t)
-
-    Resulting in:
-    u(t) = Kp * e(t)  +  Kd * de(t)  where
-        de(t) = e(t-1) - e(t) / (1/frequency)
-    """
+    # """
+    # PD-controller that tries to achieve constant yaw `r`.
+    # Hence r(t) = r is constant for all t
+    # y(t) is the actual yaw obtained from the odometry information
+    # e(t) = r(t) - y(t)
+    #
+    # Resulting in:
+    # u(t) = Kp * e(t)  +  Kd * de(t)  where
+    #     de(t) = e(t-1) - e(t) / (1/frequency)
+    # """
 
     def __init__(self, r, Kp, Kd):
         self.hz = 100
@@ -57,12 +59,16 @@ class PDController:
         # calculate e(t) = r(t) - y(t)
         self.e = self.r - self.yt
 
+        print("Error: " +str(self.e))
+
         # approximate derivative with $(e(t) - e(t-1)) / d$  where
         # d is time passed, i.e. `1/self.hz`
         self.de = (self.e - self.eprev) / (1. / self.hz)
 
         # u(t) is the steering angle output
-        u = self.Kp * e + self.Kd * self.de
+        u = (self.Kp * self.e + self.Kd * self.de) / math.pi
+
+        print(u)
 
         # publish steering command
         self.steer(u)
@@ -85,10 +91,22 @@ class PDController:
 
 if __name__ == "__main__":
 
+    print("START")
+
+    rospy.init_node("pd_controller")
+
+    #drive
+    pub_speed = rospy.Publisher('/actuators/speed', SpeedCommand, queue_size=1, tcp_nodelay=True)
+    rospy.sleep(2)
+    pub_speed.publish(SpeedCommand(value=0.15))#.15))
+
+
     r = float(sys.argv[1])
     Kp = float(sys.argv[2])
     Kd = float(sys.argv[3])
 
     pdcontroller = PDController(r, Kp, Kd)
     pdcontroller.run()
+
+
     rospy.spin()
