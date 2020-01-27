@@ -6,12 +6,19 @@ from scipy.interpolate import CubicSpline
 import random
 import math
 
-# import rospy
-# from visualization_msgs.msg import Marker
-# from geometry_msgs.msg import Point, PointStamped
+import rospy
+#from geometry_msgs.msg import Point, PointStamped
+from visualization_msgs.msg import Marker
+from autominy_msgs.msg import NormalizedSteeringCommand, NormalizedSpeedCommand
+from nav_msgs.msg import Odometry
+from tf.transformations import euler_from_quaternion
 
 current_spline_x = None
 current_spline_y = None
+
+car_pos = None
+
+CAR_ID = "15"
 
 class Point:
     def __init__(self, arc, x, y):
@@ -40,18 +47,8 @@ def calc_distance(point1, point2):
 def get_point(lane,i):
     return Point(lane[i,0],lane[i,1],lane[i,2])
 
-def plot_first_points(index):
-    plot_point( [Point(None, current_lane[index[0], 1], current_lane[index[0], 2]),
-                 Point(None, current_lane[index[1], 1], current_lane[index[1], 2]),
-                 Point(None, current_lane[index[2], 1], current_lane[index[2], 2]),
-                 Point(None, current_lane[index[3], 1], current_lane[index[3], 2]),
-                 Point(None, current_lane[index[4], 1], current_lane[index[4], 2]),
-                 Point(None, current_lane[index[5], 1], current_lane[index[5], 2]),
-                 ] )
-
 def calc_closest_point(lane,point):
     index = np.linspace(0,len(lane),6,endpoint=False,dtype=int)
-    #plot_first_points(index)
     smallest_distance = float('inf')
     smallest_i = None
     for i in range(len(index)):
@@ -87,12 +84,12 @@ def get_point_from_spline(arc):
     return p
 
 def get_car_pos(x=None,y=None):
-
-    #TODO implement
     if(x == None and y == None):
         x = random.randint(0, 6)
         y = random.randint(0, 4)
-    p = Point(None,x, y)
+        p = Point(None,x, y)
+    else:
+        p = car_pos
     return  p
 
 def plot_point(points_array):
@@ -130,27 +127,108 @@ def drive():
         point_to_drive = add_lookahead(point_on_spline,0.5)
 
 def change_line():
-    global current_lane, current_i, current_spline_x, current_spline_y
-    current_i = (current_i + 1) % 2
-    current_lane = select_points(lanes[current_i])
-    current_spline_x = splines_x[current_i]
-    current_spline_y = splines_y[current_i]
+    global current_lane, index_spline, current_spline_x, current_spline_y
+    index_spline = (index_spline + 1) % 2
+    current_lane = select_points(lanes[index_spline])
+    current_spline_x = splines_x[index_spline]
+    current_spline_y = splines_y[index_spline]
+
+def drive_to_next_point():
+    global last_error
+    diff = target_radiant - car_radiant
+    # normalize steering angles (keep between -pi and pi)
+    error = math.atan2(math.sin(diff), math.cos(diff))
+    derivative_error = (error - last_error) / (0.1)
+
+    pid_output = Kp * error + Kd * derivative_error
+    publisher_steering.publish(NormalizedSteeringCommand(value=pid_output))
+
+    # for next step's derivative
+    last_error = e
+
+def callback_gps(data):
+    global car_radiant, car_pos, target_radiant
+
+    p = data.pose.pose.position
+    car_pos_tmp = Point(None, p.x, p.y)
+    point_on_spline = calc_closest_point(current_lane, car_pos_tmp)
+    point_to_drive = add_lookahead(point_on_spline, 1)
+    target_vector = (point_to_drive.x - car_pos_tmp.x, point_to_drive.y - car_pos_tmp.y)
+    target_radiant = math.atan2(target_vector[1], target_vector[0])
+    car_pos = car_pos_tmp
+
+    o = data.pose.pose.orientation
+    orientation = [o.x, o.y, o.z, o.w]
+    _, _, car_radiant = euler_from_quaternion(orientation)
+
+def main():
+    rospy.sleep(1)
+    rate = rospy.Rate(hz)
+    pub_speed.publish(NormalizedSpeedCommand(value=0.12))
+    change_lane_counter = 0
+    while not rospy.is_shutdown():
+        # if(change_lane_counter > 100):
+        #     change_lane_counter = 0
+        #     print("change lane")
+        #     change_line()
+        drive_to_next_point()
+        change_lane_counter = change_lane_counter + 1
+        rate.sleep()
 
 if __name__ == "__main__":
-    # rospy.init_node("spline")
-    current_i = -1
+    rospy.init_node("spline")
+
+    #init
+    index_spline = -1
     lanes = [np.load("lane1.npy"), np.load("lane2.npy")]
     splines_x,splines_y = calc_spline_interpolations(lanes)
-
+    change_line()
     change_line()
 
-    #drive()
+    hz = 10
+    Kp = 4.0#4.0 #1
+    Kd = 0#0.1 #1
+    car_radiant = 0
+    target_radiant = 0
+    e = 0
+    car_pos = None
+    last_error = 0.0
+    integral_error = 0.0
 
-    car_pos = get_car_pos()
-    point_on_spline = calc_closest_point(current_lane, car_pos)
-    point_to_drive = add_lookahead(point_on_spline,0.5)
+    pub_speed = rospy.Publisher('/actuators/speed_normalized', NormalizedSpeedCommand, queue_size=10)
+    publisher_steering = rospy.Publisher("/actuators/steering_normalized", NormalizedSteeringCommand, queue_size=10)
+    pub_marker = rospy.Publisher("/spline/close", Marker, queue_size=10)
+    subscriber_odometry = rospy.Subscriber("/communication/gps/" + CAR_ID, Odometry, callback_gps, queue_size=10)
+    rospy.sleep(2)
 
-    plot_point([point_on_spline,car_pos,point_to_drive])
+    main()
+    #rospy.spin()
 
-    # rospy.spin()
 
+def marker():
+    marker = Marker()
+    marker.header.frame_id = "map"
+
+    marker.ns = "road"
+    marker.id = 0
+    marker.type = Marker.SPHERE
+    marker.action = Marker.ADD
+
+    marker.scale.x = 0.5
+    marker.scale.y = 0.5
+    marker.scale.z = 0.5
+    marker.pose.position.x = 1
+    marker.pose.position.y = 1
+    marker.pose.position.z = 0
+    marker.color.a = 1.0
+    marker.color.r = 1.0
+    marker.color.g = 0
+    marker.color.b = 1
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+    marker.color.r = 1.0
+    marker.color.g = 0
+    marker.color.b = 1
+    pub_marker.publish(marker)
