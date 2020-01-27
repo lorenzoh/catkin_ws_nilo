@@ -4,14 +4,19 @@ from autominy_msgs.msg import NormalizedSteeringCommand, SteeringCommand
 import tf.transformations
 import math
 
+
 class SteeringPID:
 
     def __init__(self):
         rospy.init_node("steering_pid")
         self.steering_pub = rospy.Publisher("/actuators/steering_normalized", NormalizedSteeringCommand, queue_size=10)
-        self.localization_sub = rospy.Subscriber("/sensors/localization/filtered_map", Odometry, self.on_localization,
-                                                 queue_size=1)
-        self.steering_sub = rospy.Subscriber("/control/steering", SteeringCommand, self.on_steering, queue_size=1)
+
+        # self.localization_sub = rospy.Subscriber("/sensors/localization/filtered_map", Odometry, self.on_localization,
+        #                                           queue_size=1)
+        # self.steering_sub = rospy.Subscriber("/control/steering", SteeringCommand, self.on_steering, queue_size=1)
+
+        self.car_pos_sub = rospy.Subscriber("/assignment11/car_pos", Odometry, self.on_localization, queue_size=1)
+        self.target_sub = rospy.Subscriber("/assignment11/target", SteeringCommand, self.on_steering, queue_size=1)
 
         self.pose = Odometry()
         self.rate = rospy.Rate(100)
