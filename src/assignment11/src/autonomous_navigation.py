@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .steering_pid import SteeringPID
+from steering_pid import SteeringPID
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ current_spline_y = None
 
 car_pos = None
 
-CAR_ID = "15"
+CAR_ID = "6"#"6"#"15"
 
 class Point:
     def __init__(self, arc, x, y):
@@ -29,6 +29,36 @@ class Point:
         self.y = y
     def __str__(self):
         return "("+str(self.x)[:3]+","+str(self.y)[:3]+")"
+
+def marker():
+    pub_marker = rospy.Publisher("/spline/close", Marker, queue_size=10)
+
+    marker = Marker()
+    marker.header.frame_id = "map"
+
+    marker.ns = "road"
+    marker.id = 0
+    marker.type = Marker.SPHERE
+    marker.action = Marker.ADD
+
+    marker.scale.x = 0.5
+    marker.scale.y = 0.5
+    marker.scale.z = 0.5
+    marker.pose.position.x = 1
+    marker.pose.position.y = 1
+    marker.pose.position.z = 0
+    marker.color.a = 1.0
+    marker.color.r = 1.0
+    marker.color.g = 0
+    marker.color.b = 1
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+    marker.color.r = 1.0
+    marker.color.g = 0
+    marker.color.b = 1
+    pub_marker.publish(marker)
 
 def select_points(lane):
     last_point = np.array([lane[-1]])
@@ -160,31 +190,28 @@ def callback_gps(data):
 
     #pub target and car pos
     target_msg = SteeringCommand(value=target_radiant)
-    pub_target.pub(target_msg)
-    pub_car_pos.pub(data)
+    pub_target.publish(target_msg)
+    pub_car_pos.publish(data)
 
     # o = data.pose.pose.orientation
     # orientation = [o.x, o.y, o.z, o.w]
     # _, _, car_radiant = euler_from_quaternion(orientation)
 
-# def main():
-#     rospy.sleep(1)
-#     rate = rospy.Rate(hz)
-#     pub_speed.publish(NormalizedSpeedCommand(value=0.12))
-#     change_lane_counter = 0
-#     while not rospy.is_shutdown():
-#         # if(change_lane_counter > 100):
-#         #     change_lane_counter = 0
-#         #     print("change lane")
-#         #     change_line()
-#         drive_to_next_point()
-#         change_lane_counter = change_lane_counter + 1
-#         rate.sleep()
+def change_lane_after_time():
+    rate = rospy.Rate(100)
+    change_lane_counter = 0
+    while not rospy.is_shutdown():
+        if(change_lane_counter > 1000):
+            change_lane_counter = 0
+            print("change lane")
+            change_line()
+        change_lane_counter = change_lane_counter + 1
+        rate.sleep()
 
 if __name__ == "__main__":
     rospy.init_node("spline")
 
-    steering_pid = SteeringPID()
+    #steering_pid = SteeringPID()
 
     #init
     index_spline = -1
@@ -198,39 +225,13 @@ if __name__ == "__main__":
 
     pub_speed = rospy.Publisher('/actuators/speed_normalized', NormalizedSpeedCommand, queue_size=10)
 
+
     subscriber_odometry = rospy.Subscriber("/communication/gps/" + CAR_ID, Odometry, callback_gps, queue_size=10)
     rospy.sleep(2)
 
-    #main()
+    pub_speed.publish(NormalizedSpeedCommand(value=0.07))
+
+    change_lane_after_time()
+
     rospy.spin()
 
-
-def marker():
-    pub_marker = rospy.Publisher("/spline/close", Marker, queue_size=10)
-
-    marker = Marker()
-    marker.header.frame_id = "map"
-
-    marker.ns = "road"
-    marker.id = 0
-    marker.type = Marker.SPHERE
-    marker.action = Marker.ADD
-
-    marker.scale.x = 0.5
-    marker.scale.y = 0.5
-    marker.scale.z = 0.5
-    marker.pose.position.x = 1
-    marker.pose.position.y = 1
-    marker.pose.position.z = 0
-    marker.color.a = 1.0
-    marker.color.r = 1.0
-    marker.color.g = 0
-    marker.color.b = 1
-    marker.pose.orientation.x = 0.0
-    marker.pose.orientation.y = 0.0
-    marker.pose.orientation.z = 0.0
-    marker.pose.orientation.w = 1.0
-    marker.color.r = 1.0
-    marker.color.g = 0
-    marker.color.b = 1
-    pub_marker.publish(marker)
